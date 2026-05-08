@@ -6,6 +6,7 @@ import com.baseball.simulation.domain.dto.BoxScoreDto;
 import com.baseball.simulation.domain.dto.GameListItemDto;
 import com.baseball.simulation.domain.dto.PitcherBoxLineDto;
 import com.baseball.simulation.domain.dto.PitcherRankingDto;
+import com.baseball.simulation.domain.dto.TeamDto;
 import com.baseball.simulation.domain.dto.TeamRankingDto;
 import com.baseball.simulation.facade.GameFacade;
 import java.time.Year;
@@ -52,17 +53,41 @@ public class ConsoleMenuController {
     private void handleGameMenu(Scanner scanner) {
         System.out.println();
         System.out.println("=== 경기 모드 선택 ===");
-        System.out.println("1) 랜덤 모드");
-        System.out.println("2) 승/패 모드");
-        System.out.println("3) 스코어 모드");
+        System.out.println("1. 일반 모드");
+        System.out.println("2. 승/패 지정 모드");
+        System.out.println("3. 스코어 모드");
         System.out.print("선택: ");
 
         Object parsedMode = parseInput(scanner.nextLine());
         switch (parsedMode) {
             case Integer mode when mode == 1 -> gameFacade.startRandomGame();
-            case Integer mode when mode == 2 -> System.out.println("승/패 모드는 준비 중입니다.");
+            case Integer mode when mode == 2 -> handleWinControlMode(scanner);
             case Integer mode when mode == 3 -> System.out.println("스코어 모드는 준비 중입니다.");
             default -> System.out.println("올바른 모드 번호를 입력해주세요.");
+        }
+    }
+
+    private void handleWinControlMode(Scanner scanner) {
+        List<TeamDto> teams = gameFacade.getTeamList();
+        if (teams.isEmpty()) {
+            System.out.println("등록된 팀이 없습니다.");
+            return;
+        }
+
+        System.out.println();
+        System.out.println("=== 승리 팀 선택 ===");
+        for (int i = 0; i < teams.size(); i++) {
+            System.out.printf("%d. %s%n", i + 1, teams.get(i).name());
+        }
+        System.out.print("승리할 팀 번호 선택: ");
+
+        Object input = parseInput(scanner.nextLine());
+        if (input instanceof Integer n && n >= 1 && n <= teams.size()) {
+            TeamDto selectedTeam = teams.get(n - 1);
+            System.out.printf("[시스템] '%s' 팀의 승리가 보장된 경기를 시작합니다.%n", selectedTeam.name());
+            gameFacade.startWinControlGame(selectedTeam.id());
+        } else {
+            System.out.println("올바른 번호를 입력해주세요.");
         }
     }
 

@@ -23,5 +23,9 @@ public class GameSimulationReader {
     public List<Player> readPlayersByTeamOrderByIdAsc(Team team) {
         return playerRepository.findByTeamOrderByIdAsc(team);
     }
+
+    public List<Team> findAllTeams() {
+        return teamRepository.findAll();
+    }
 }
 

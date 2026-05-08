@@ -2,6 +2,7 @@ package com.baseball.simulation.service.game;
 
 import com.baseball.simulation.domain.BatterStatSnapshot;
 import com.baseball.simulation.domain.PitcherStatSnapshot;
+import com.baseball.simulation.domain.WinControlContext;
 import com.baseball.simulation.domain.dto.GameInitDto;
 import com.baseball.simulation.domain.dto.GameRecordDto;
 import com.baseball.simulation.domain.dto.GameSimulationResultDto;
@@ -35,12 +36,14 @@ public class GameLogicService {
      * @param initDto      팀·선수·경기 초기화 데이터
      * @param batterStats  경기 시작 전 타자 성적 맵 (경기 중 인메모리 업데이트됨)
      * @param pitcherStats 경기 시작 전 투수 성적 맵 (경기 중 인메모리 업데이트됨)
+     * @param winCtx       승/패 제어 모드 컨텍스트 (일반 모드이면 WinControlContext.normal())
      * @return 최종 스코어 + 전체 투구 기록 + 최종 타자/투수 성적 스냅샷 목록
      */
     public GameSimulationResultDto simulate(
             GameInitDto initDto,
             Map<Long, BatterStatSnapshot>  batterStats,
-            Map<Long, PitcherStatSnapshot> pitcherStats
+            Map<Long, PitcherStatSnapshot> pitcherStats,
+            WinControlContext winCtx
     ) {
         List<GameRecordDto> allRecords   = new ArrayList<>();
         List<PlayerDto>     teamAPlayers = initDto.teamAPlayers();
@@ -67,7 +70,8 @@ public class GameLogicService {
                     battingIndexA,
                     scoreA, scoreB,
                     false, 0, 0,
-                    allRecords, batterStats, pitcherStats
+                    allRecords, batterStats, pitcherStats,
+                    winCtx
             );
             scoreA        += top.runs();
             battingIndexA  = top.nextBattingIndex();
@@ -83,7 +87,8 @@ public class GameLogicService {
                     battingIndexB,
                     scoreA, scoreB,
                     inning >= 9, scoreA, scoreB,
-                    allRecords, batterStats, pitcherStats
+                    allRecords, batterStats, pitcherStats,
+                    winCtx
             );
             scoreB        += bottom.runs();
             battingIndexB  = bottom.nextBattingIndex();
