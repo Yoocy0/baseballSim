@@ -96,6 +96,16 @@ public class GameDataService {
                 .toList();
     }
 
+    /**
+     * 등록된 모든 팀 목록을 조회합니다. (승/패 제어 모드에서 팀 선택 UI에 사용)
+     */
+    @Transactional(readOnly = true)
+    public List<TeamDto> getAllTeams() {
+        return simulationReader.findAllTeams().stream()
+                .map(t -> new TeamDto(t.getId(), t.getName()))
+                .toList();
+    }
+
     private List<PlayerDto> toPlayerDtos(List<Player> players) {
         return players.stream()
                 .map(p -> new PlayerDto(p.getId(), p.getName()))
