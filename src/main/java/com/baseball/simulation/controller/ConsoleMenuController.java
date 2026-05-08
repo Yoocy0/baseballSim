@@ -62,7 +62,7 @@ public class ConsoleMenuController {
         switch (parsedMode) {
             case Integer mode when mode == 1 -> gameFacade.startRandomGame();
             case Integer mode when mode == 2 -> handleWinControlMode(scanner);
-            case Integer mode when mode == 3 -> System.out.println("스코어 모드는 준비 중입니다.");
+            case Integer mode when mode == 3 -> handleScoreMode(scanner);
             default -> System.out.println("올바른 모드 번호를 입력해주세요.");
         }
     }
@@ -88,6 +88,53 @@ public class ConsoleMenuController {
             gameFacade.startWinControlGame(selectedTeam.id());
         } else {
             System.out.println("올바른 번호를 입력해주세요.");
+        }
+    }
+
+    private void handleScoreMode(Scanner scanner) {
+        List<TeamDto> teams = gameFacade.getTeamList();
+        if (teams.size() < 2) {
+            System.out.println("팀이 2개 이상 등록되어야 합니다.");
+            return;
+        }
+        TeamDto teamA = teams.get(0);
+        TeamDto teamB = teams.get(1);
+
+        System.out.println();
+        System.out.println("=== 스코어 모드 — 타겟 점수 입력 ===");
+        System.out.println("※ 0 이상의 정수만 입력 가능합니다. 음수·소수는 재입력을 요청합니다.");
+        System.out.println();
+
+        System.out.printf("A팀 (%s) 타겟 점수: ", teamA.name());
+        int targetA = readNonNegativeInt(scanner);
+
+        System.out.printf("B팀 (%s) 타겟 점수: ", teamB.name());
+        int targetB = readNonNegativeInt(scanner);
+
+        System.out.printf("%n[스코어 모드] %s %d : %d %s 타겟으로 시뮬레이션을 시작합니다.%n",
+                teamA.name(), targetA, targetB, teamB.name());
+        gameFacade.startScoreGame(targetA, targetB);
+    }
+
+    /**
+     * 0 이상의 정수를 입력받을 때까지 반복합니다.
+     * 음수·소수·문자 입력 시 오류 메시지를 출력하고 재입력을 요청합니다.
+     */
+    private int readNonNegativeInt(Scanner scanner) {
+        while (true) {
+            String raw = scanner.nextLine().trim();
+            try {
+                // 소수점 포함 여부 먼저 확인
+                if (raw.contains(".")) {
+                    System.out.print("소수는 입력할 수 없습니다. 0 이상의 정수를 입력해주세요: ");
+                    continue;
+                }
+                int value = Integer.parseInt(raw);
+                if (value >= 0) return value;
+                System.out.print("음수는 입력할 수 없습니다. 0 이상의 정수를 입력해주세요: ");
+            } catch (NumberFormatException e) {
+                System.out.print("올바른 숫자가 아닙니다. 0 이상의 정수를 입력해주세요: ");
+            }
         }
     }
 
@@ -133,7 +180,7 @@ public class ConsoleMenuController {
             BoxScoreDto bs = gameFacade.getBoxScore(gameId);
             printBoxScore(bs);
         } catch (Exception e) {
-            System.out.println("박스스코어를 불러오는 중 오류가 발생했습니다: " + e.getMessage());
+            System.out.println("박스 스코어를 불러오는 중 오류가 발생했습니다: " + e.getMessage());
         }
     }
 

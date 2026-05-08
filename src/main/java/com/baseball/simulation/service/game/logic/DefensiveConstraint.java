@@ -37,7 +37,11 @@ public record DefensiveConstraint(boolean active, int maxRunsAllowed) {
         return cap(lead);                      // 동점 허용 범위까지만 허용
     }
 
-    private static DefensiveConstraint cap(int maxRuns) {
+    /**
+     * 지정한 득점 수까지만 허용하는 제약을 생성합니다.
+     * {@link ScoreModeController}를 포함한 외부 컴포넌트에서도 사용합니다.
+     */
+    public static DefensiveConstraint cap(int maxRuns) {
         return new DefensiveConstraint(true, maxRuns);
     }
 

@@ -3,6 +3,7 @@ package com.baseball.simulation.facade;
 import com.baseball.simulation.domain.BatterStatSnapshot;
 import com.baseball.simulation.domain.GameScheduleItem;
 import com.baseball.simulation.domain.PitcherStatSnapshot;
+import com.baseball.simulation.domain.ScoreTargetContext;
 import com.baseball.simulation.domain.WinControlContext;
 import com.baseball.simulation.domain.dto.BatterRankingDto;
 import com.baseball.simulation.domain.dto.BoxScoreDto;
@@ -45,11 +46,9 @@ public class GameFacade {
     private final PitcherRecordService pitcherRecordService;
     private final GameBoxScoreService  gameBoxScoreService;
 
-    /**
-     * 일반(랜덤) 모드 경기를 진행합니다.
-     */
+    /** 일반(랜덤) 모드 경기를 진행합니다. */
     public void startRandomGame() {
-        startGame(null);
+        startGame(null, ScoreTargetContext.none());
     }
 
     /**
@@ -58,20 +57,28 @@ public class GameFacade {
      * @param winnerTeamId 반드시 승리해야 하는 팀 ID
      */
     public void startWinControlGame(Long winnerTeamId) {
-        startGame(winnerTeamId);
+        startGame(winnerTeamId, ScoreTargetContext.none());
     }
 
     /**
-     * 경기를 진행합니다. (일반/승패 제어 공통 로직)
+     * 스코어 모드 경기를 진행합니다. 양 팀의 최종 타겟 점수를 지정합니다.
+     *
+     * @param targetScoreA A팀(away) 타겟 점수 (0 이상 정수)
+     * @param targetScoreB B팀(home) 타겟 점수 (0 이상 정수)
+     */
+    public void startScoreGame(int targetScoreA, int targetScoreB) {
+        startGame(null, new ScoreTargetContext(targetScoreA, targetScoreB));
+    }
+
+    /**
+     * 경기를 진행합니다. (일반/승패 제어/스코어 모드 공통 로직)
      * <p>
      * [DB 접근 최소화 전략]
      * - 경기 시작 전: 타자·투수 성적을 각 1회 배치 로드
      * - 경기 진행 중: 인메모리에서만 성적 누적 (DB 접근 0회)
      * - 경기 종료 후: 타자·투수 성적 각 1회 saveAll 일괄 저장
-     *
-     * @param winnerTeamId null이면 일반 모드, 값이 있으면 승/패 제어 모드
      */
-    private void startGame(Long winnerTeamId) {
+    private void startGame(Long winnerTeamId, ScoreTargetContext scoreCtx) {
         int currentYear = Year.now().getValue();
 
         GameInitDto initDto = gameDataService.prepareGame();
@@ -99,7 +106,7 @@ public class GameFacade {
 
         // ── 시뮬레이션 (메모리 내 성적 업데이트 포함) ─────────────────────
         GameSimulationResultDto resultDto =
-                gameLogicService.simulate(initDto, batterStats, pitcherStats, winCtx);
+                gameLogicService.simulate(initDto, batterStats, pitcherStats, winCtx, scoreCtx);
 
         // ── 투구 기록 & 경기 결과 DB 저장 ────────────────────────────────
         gameDataService.saveSimulationResult(resultDto);

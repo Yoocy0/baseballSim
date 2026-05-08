@@ -30,8 +30,8 @@ public class PitchDecider {
 
     // ── 추격(CHASE) 보정 확률 — 아웃 확률 대폭 감소, 안타 확률 대폭 상향 ───────
     private static final double CHASE_SWING_PROB      = 0.60;  // 스윙 확률 25% → 60%
-    private static final double CHASE_SWING_MISS      = 0.25;  // 헛스윙률 60% → 25%
-    private static final double CHASE_FIELD_OUT       = 0.25;  // 범타률 70% → 25%
+    private static final double CHASE_SWING_MISS      = 0.30;  // 헛스윙률 60% → 25%
+    private static final double CHASE_FIELD_OUT       = 0.35;  // 범타률 70% → 25%
     private static final double CHASE_CALLED_STRIKE   = 0.45;  // 낫아웃 70% → 45%
 
     // ── 안타 종류 누적 확률 (SINGLE 50%, DOUBLE 30%, HOMERUN 15%, TRIPLE 5%) ───
