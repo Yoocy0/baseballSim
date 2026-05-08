@@ -2,6 +2,7 @@ package com.baseball.simulation.service.game.logic;
 
 import com.baseball.simulation.domain.BatterStatSnapshot;
 import com.baseball.simulation.domain.PitcherStatSnapshot;
+import com.baseball.simulation.domain.ScoreTargetContext;
 import com.baseball.simulation.domain.WinControlContext;
 import com.baseball.simulation.domain.dto.GameRecordDto;
 import com.baseball.simulation.domain.dto.PlayerDto;
@@ -22,9 +23,14 @@ import org.springframework.stereotype.Component;
  * - 타자(batter): BatterStatSnapshot.applyPaResult() 호출 → 타석·타점·안타 등 반영
  * - 투수(pitcher): PitcherStatSnapshot.applyPaResult() 호출 → 투구수·실점·아웃 반영
  * <p>
- * [승/패 제어 모드]
- * - 공격 측 보정: {@link ChaseOffenseService} — 승리 팀이 지고 있을 때 타격 강화 (독립 컴포넌트)
- * - 수비 측 보정: {@link FateDefenseService} — 9회 이후, 역전·끝내기 방지 (독립 컴포넌트)
+ * [확률 보정 모드 — 우선순위]
+ * <ol>
+ *   <li>승/패 제어 모드 ({@link WinControlContext}):
+ *       공격={@link ChaseOffenseService}, 수비={@link FateDefenseService}</li>
+ *   <li>스코어 모드 ({@link ScoreTargetContext}):
+ *       공수 통합={@link ScoreModeController}</li>
+ *   <li>일반 모드: 보정 없음</li>
+ * </ol>
  */
 @Component
 @RequiredArgsConstructor
@@ -33,6 +39,7 @@ public class InningProcessor {
     private final PlateAppearanceProcessor paProcessor;
     private final ChaseOffenseService      chaseOffenseService;
     private final FateDefenseService       fateDefenseService;
+    private final ScoreModeController      scoreModeController;
 
     public InningSimResult process(
             Long gameId,
@@ -49,7 +56,8 @@ public class InningProcessor {
             List<GameRecordDto> allRecords,
             Map<Long, BatterStatSnapshot>  batterStats,
             Map<Long, PitcherStatSnapshot> pitcherStats,
-            WinControlContext winCtx
+            WinControlContext winCtx,
+            ScoreTargetContext scoreCtx
     ) {
         int halfInningSeq = inning * 2 + (isTop ? -1 : 0);
         String halfLabel  = inning + "회 " + (isTop ? "초" : "말");
@@ -76,21 +84,49 @@ public class InningProcessor {
             int liveScoreA = isTop  ? displayScoreA + runs : displayScoreA;
             int liveScoreB = !isTop ? displayScoreB + runs : displayScoreB;
 
-            // ── 공격 측 보정 — ChaseOffenseService에 위임 ──────────────────
-            BattingMode battingMode = chaseOffenseService.computeBattingMode(
-                    winCtx, inning, isTop, outs, liveScoreA, liveScoreB
-            );
-            if (battingMode == BattingMode.LAST_CHANCE && !lastChancePrinted) {
-                System.out.println("[시스템] ⚡ 기적 로직 가동! 이번 타석은 반드시 안타 이상!");
-                lastChancePrinted = true;
-            } else if (battingMode == BattingMode.CHASE) {
-                System.out.println("[시스템] 승리 팀 보정 로직 가동 중...");
-            }
+            // ── 모드별 보정 결정 ──────────────────────────────────────────────
+            BattingMode         battingMode;
+            DefensiveConstraint defConstraint;
 
-            // ── 수비 측 보정 — FateDefenseService에 위임 (9회 이후만 활성) ─────
-            DefensiveConstraint defConstraint = fateDefenseService.computeConstraint(
-                    winCtx, inning, isTop, liveScoreA, liveScoreB
-            );
+            if (winCtx.isControlMode()) {
+                // [모드 1] 승/패 제어 — ChaseOffenseService + FateDefenseService
+                battingMode  = chaseOffenseService.computeBattingMode(
+                        winCtx, inning, isTop, outs, liveScoreA, liveScoreB);
+                defConstraint = fateDefenseService.computeConstraint(
+                        winCtx, inning, isTop, liveScoreA, liveScoreB);
+
+                if (battingMode == BattingMode.LAST_CHANCE && !lastChancePrinted) {
+                    System.out.println("[시스템] ⚡ 기적 로직 가동! 이번 타석은 반드시 안타 이상!");
+                    lastChancePrinted = true;
+                } else if (battingMode == BattingMode.CHASE) {
+                    System.out.println("[시스템] 승리 팀 보정 로직 가동 중...");
+                }
+
+            } else if (scoreCtx.isScoreMode()) {
+                // [모드 2] 스코어 모드 — ScoreModeController
+                int battingScore   = isTop ? liveScoreA : liveScoreB;
+                int battingTarget  = isTop ? scoreCtx.targetScoreA() : scoreCtx.targetScoreB();
+                int opponentScore  = isTop ? liveScoreB : liveScoreA;
+                int opponentTarget = isTop ? scoreCtx.targetScoreB() : scoreCtx.targetScoreA();
+                boolean opponentDone = opponentScore >= opponentTarget;
+
+                battingMode   = scoreModeController.computeOffensiveMode(
+                        battingScore, battingTarget, inning, outs);
+                defConstraint = scoreModeController.evaluateScoreCondition(
+                        battingScore, battingTarget, opponentScore, opponentDone);
+
+                if (battingMode == BattingMode.LAST_CHANCE && !lastChancePrinted) {
+                    System.out.println("[스코어 조작] ⚡ 기적 로직 가동! 타겟 점수 달성을 위해 안타를 보장합니다.");
+                    lastChancePrinted = true;
+                } else if (battingMode == BattingMode.CHASE) {
+                    System.out.println("[스코어 조작] 타겟 점수 추격 보정 가동 중...");
+                }
+
+            } else {
+                // [모드 3] 일반 모드
+                battingMode   = BattingMode.NORMAL;
+                defConstraint = DefensiveConstraint.none();
+            }
 
             PASimResult pa = paProcessor.process(
                     gameId, halfInningSeq, inning, isTop,
@@ -145,8 +181,9 @@ public class InningProcessor {
                 pitcherSnap.applyPaResult(pa.paResultCode(), pitchCount, runsInThisPA);
             }
 
-            // ── 끝내기 판정 ──────────────────────────────────────────────────
-            if (allowWalkOff && !isTop && (homeScoreBeforeHalf + runs) > awayScore) {
+            // ── 끝내기 판정 (일반/승패 모드에서만 적용) ─────────────────────
+            if (!scoreCtx.isScoreMode()
+                    && allowWalkOff && !isTop && (homeScoreBeforeHalf + runs) > awayScore) {
                 printInningEnd(halfLabel, outs, true);
                 return new InningSimResult(runs, nextIndex(battingIndex, battingTeam), outs, true);
             }
