@@ -8,11 +8,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class ConsoleRunner implements CommandLineRunner {
 
-    private final ConsoleManager consoleManager;
+    private final com.baseball.simulation.controller.ConsoleMenuController consoleMenuController;
 
     @Override
     public void run(String... args) {
-        consoleManager.startInteractiveMenu();
+        consoleMenuController.startInteractiveMenu();
     }
 }
 

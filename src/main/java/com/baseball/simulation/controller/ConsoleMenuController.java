@@ -1,18 +1,21 @@
-package com.baseball.simulation.service;
+package com.baseball.simulation.controller;
 
-import com.baseball.simulation.entity.Game;
-import com.baseball.simulation.repository.GameRepository;
+import com.baseball.simulation.domain.GameScheduleItem;
+import com.baseball.simulation.facade.GameFacade;
 import java.util.List;
 import java.util.Scanner;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
-@Service
+/**
+ * 콘솔 메뉴 컨트롤러입니다.
+ * GameFacade만 주입받으며, Service / Repository에 직접 의존하지 않습니다.
+ */
+@Component
 @RequiredArgsConstructor
-public class ConsoleManager {
+public class ConsoleMenuController {
 
-    private final SimulationService simulationService;
-    private final GameRepository gameRepository;
+    private final GameFacade gameFacade;
 
     public void startInteractiveMenu() {
         Scanner scanner = new Scanner(System.in);
@@ -44,7 +47,7 @@ public class ConsoleManager {
 
         Object parsedMode = parseInput(scanner.nextLine());
         switch (parsedMode) {
-            case Integer mode when mode == 1 -> simulationService.runSingleGame();
+            case Integer mode when mode == 1 -> gameFacade.startRandomGame();
             case Integer mode when mode == 2 -> System.out.println("승/패 모드는 준비 중입니다.");
             case Integer mode when mode == 3 -> System.out.println("스코어 모드는 준비 중입니다.");
             default -> System.out.println("올바른 모드 번호를 입력해주세요.");
@@ -54,22 +57,20 @@ public class ConsoleManager {
     private void printGameRecordsAndSchedule() {
         System.out.println();
         System.out.println("=== 기록/일정 ===");
-        List<Game> games = gameRepository.findAllWithTeamsOrderByIdDesc();
 
-        if (games.isEmpty()) {
+        List<GameScheduleItem> items = gameFacade.getRecentGames();
+        if (items.isEmpty()) {
             System.out.println("등록된 경기가 없습니다.");
             return;
         }
 
-        for (Game game : games) {
-            String teamA = game.getTeamA() != null ? game.getTeamA().getName() : "TeamA";
-            String teamB = game.getTeamB() != null ? game.getTeamB().getName() : "TeamB";
-            System.out.printf("%s %d:%d %s (%d 경기)%n",
-                    teamA,
-                    game.getScoreA(),
-                    game.getScoreB(),
-                    teamB,
-                    game.getId());
+        for (GameScheduleItem item : items) {
+            System.out.printf("%s %d:%d %s (Game_%d 경기)%n",
+                    item.awayTeamName(),
+                    item.awayScore(),
+                    item.homeScore(),
+                    item.homeTeamName(),
+                    item.gameId());
         }
     }
 
@@ -91,4 +92,3 @@ public class ConsoleManager {
         }
     }
 }
-
