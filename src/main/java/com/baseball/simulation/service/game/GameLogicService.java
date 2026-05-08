@@ -52,6 +52,10 @@ public class GameLogicService {
         int battingIndexB = 0;
         int inning        = 1;
 
+        // 이닝별 득점 추적 (박스스코어 스코어보드 표시용)
+        List<Integer> inningScoresA = new ArrayList<>();
+        List<Integer> inningScoresB = new ArrayList<>();
+
         System.out.printf("%n[경기 시작] %s vs %s%n",
                 initDto.teamA().name(), initDto.teamB().name());
 
@@ -67,7 +71,9 @@ public class GameLogicService {
             );
             scoreA        += top.runs();
             battingIndexA  = top.nextBattingIndex();
+            inningScoresA.add(top.runs());
 
+            // 9회 이후, 말 공격 없이 홈팀(B)이 이미 앞서면 경기 종료
             if (inning >= 9 && scoreB > scoreA) break;
 
             // ── 말 공격: TeamB 공격, TeamA 수비 (TeamA 선수[0]이 투수) ────────
@@ -81,6 +87,7 @@ public class GameLogicService {
             );
             scoreB        += bottom.runs();
             battingIndexB  = bottom.nextBattingIndex();
+            inningScoresB.add(bottom.runs());
 
             if (bottom.walkOff()) break;
 
@@ -97,7 +104,9 @@ public class GameLogicService {
                 initDto.gameId(), scoreA, scoreB,
                 allRecords,
                 new ArrayList<>(batterStats.values()),
-                new ArrayList<>(pitcherStats.values())
+                new ArrayList<>(pitcherStats.values()),
+                inningScoresA,
+                inningScoresB
         );
     }
 }

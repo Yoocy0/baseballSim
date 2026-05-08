@@ -4,12 +4,15 @@ import com.baseball.simulation.domain.BatterStatSnapshot;
 import com.baseball.simulation.domain.GameScheduleItem;
 import com.baseball.simulation.domain.PitcherStatSnapshot;
 import com.baseball.simulation.domain.dto.BatterRankingDto;
+import com.baseball.simulation.domain.dto.BoxScoreDto;
 import com.baseball.simulation.domain.dto.GameInitDto;
+import com.baseball.simulation.domain.dto.GameListItemDto;
 import com.baseball.simulation.domain.dto.GameSimulationResultDto;
 import com.baseball.simulation.domain.dto.PitcherRankingDto;
 import com.baseball.simulation.domain.dto.PlayerDto;
 import com.baseball.simulation.domain.dto.TeamRankingDto;
 import com.baseball.simulation.service.batterrecord.BatterRecordService;
+import com.baseball.simulation.service.game.GameBoxScoreService;
 import com.baseball.simulation.service.game.GameDataService;
 import com.baseball.simulation.service.game.GameLogicService;
 import com.baseball.simulation.service.pitcherrecord.PitcherRecordService;
@@ -38,6 +41,7 @@ public class GameFacade {
     private final TeamRecordService    teamRecordService;
     private final BatterRecordService  batterRecordService;
     private final PitcherRecordService pitcherRecordService;
+    private final GameBoxScoreService  gameBoxScoreService;
 
     /**
      * 랜덤 모드 경기를 진행합니다.
@@ -119,6 +123,16 @@ public class GameFacade {
     public List<PitcherRankingDto> getPitcherRankings(
             int seasonYear, Comparator<PitcherRankingDto> comparator) {
         return pitcherRecordService.getSeasonRankings(seasonYear, comparator);
+    }
+
+    /** 전체 경기 목록을 최신순으로 반환합니다. */
+    public List<GameListItemDto> getGameList() {
+        return gameBoxScoreService.getGameList();
+    }
+
+    /** 특정 경기의 상세 박스스코어를 반환합니다. */
+    public BoxScoreDto getBoxScore(Long gameId) {
+        return gameBoxScoreService.getBoxScore(gameId);
     }
 
     // -----------------------------------------------------------------------

@@ -26,10 +26,10 @@ public record BatterRankingDto(
     /** [순위] 선수명(팀명) | 지정 지표 포맷의 한 줄 출력 */
     public String toDisplayLine(int rank) {
         return String.format(
-                "[%3d] %-8s (%-6s) | %3d타석 %3d타수 %3d안타 %2d홈런 %2d삼진 %2d볼넷"
+                "[%3d] %-8s (%-6s) | %3d타석 %3d타수 %3d안타 %2d홈런 %2d득점 %2d타점 %2d삼진 %2d볼넷"
                         + " | 타율 %.3f  출루율 %.3f  장타율 %.3f  OPS %.3f",
                 rank, playerName, teamName,
-                plateAppearances, atBats, hits, homeRuns, strikeouts, walks,
+                plateAppearances, atBats, hits, homeRuns, runs, rbi, strikeouts, walks,
                 battingAvg, onBasePct, sluggingPct, ops
         );
     }

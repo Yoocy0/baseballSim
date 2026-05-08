@@ -8,8 +8,10 @@ import com.baseball.simulation.entity.Team;
 import com.baseball.simulation.repository.GameRecordRepository;
 import com.baseball.simulation.repository.GameRepository;
 import com.baseball.simulation.repository.PlayerRepository;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -42,19 +44,29 @@ public class GameSimulationExecutor {
         game.setScoreA(0);
         game.setScoreB(0);
         game.setStatus("IN_PROGRESS");
+        game.setGameDate(LocalDate.now());
         return gameRepository.save(game);
     }
 
     /**
-     * 경기 최종 점수 반영 및 상태를 FINISHED로 변경합니다.
-     * GameLogicService에서 반환된 GameSimulationResultDto의 값을 받아 저장합니다.
+     * 경기 최종 점수·이닝 득점 반영 및 상태를 FINISHED로 변경합니다.
+     *
+     * @param inningScoresA 초 공격 이닝별 득점 목록
+     * @param inningScoresB 말 공격 이닝별 득점 목록 (마지막 이닝 미진행 시 크기가 A보다 1 작을 수 있음)
      */
-    public void finalizeGame(Long gameId, int scoreA, int scoreB) {
+    public void finalizeGame(
+            Long gameId, int scoreA, int scoreB,
+            List<Integer> inningScoresA, List<Integer> inningScoresB
+    ) {
         Game game = gameRepository.findById(gameId)
                 .orElseThrow(() -> new IllegalStateException("game_id=" + gameId + " 경기가 존재하지 않습니다."));
         game.setScoreA(scoreA);
         game.setScoreB(scoreB);
         game.setStatus("FINISHED");
+        game.setInningScoresA(inningScoresA.stream()
+                .map(String::valueOf).collect(Collectors.joining(",")));
+        game.setInningScoresB(inningScoresB.stream()
+                .map(String::valueOf).collect(Collectors.joining(",")));
         gameRepository.save(game);
     }
 
@@ -79,6 +91,7 @@ public class GameSimulationExecutor {
                     r.setPaResult(dto.paResult());
                     r.setPaEnd(dto.paEnd());
                     r.setBsoCount(dto.bsoCount());
+                    r.setRunsThisPA(dto.runsThisPA());
                     return r;
                 })
                 .toList();

@@ -1,7 +1,10 @@
 package com.baseball.simulation.controller;
 
-import com.baseball.simulation.domain.GameScheduleItem;
+import com.baseball.simulation.domain.dto.BatterBoxLineDto;
 import com.baseball.simulation.domain.dto.BatterRankingDto;
+import com.baseball.simulation.domain.dto.BoxScoreDto;
+import com.baseball.simulation.domain.dto.GameListItemDto;
+import com.baseball.simulation.domain.dto.PitcherBoxLineDto;
 import com.baseball.simulation.domain.dto.PitcherRankingDto;
 import com.baseball.simulation.domain.dto.TeamRankingDto;
 import com.baseball.simulation.facade.GameFacade;
@@ -31,7 +34,7 @@ public class ConsoleMenuController {
 
             switch (parsedMain) {
                 case Integer menu when menu == 1 -> handleGameMenu(scanner);
-                case Integer menu when menu == 2 -> printGameRecordsAndSchedule();
+                case Integer menu when menu == 2 -> handleGameScheduleMenu(scanner);
                 case Integer menu when menu == 3 -> handleRankingsMenu(scanner);
                 case Integer menu when menu == 0 -> {
                     System.out.println("프로그램을 종료합니다.");
@@ -64,25 +67,165 @@ public class ConsoleMenuController {
     }
 
     // -----------------------------------------------------------------------
-    // 기록/일정 메뉴
+    // 기록/일정 메뉴 (경기 목록 → 경기 선택 → 박스스코어)
     // -----------------------------------------------------------------------
 
-    private void printGameRecordsAndSchedule() {
+    private void handleGameScheduleMenu(Scanner scanner) {
+        while (true) {
+            List<GameListItemDto> games = gameFacade.getGameList();
+
+            System.out.println();
+            System.out.println("=== 기록/일정 ===");
+
+            if (games.isEmpty()) {
+                System.out.println("아직 진행된 경기가 없습니다.");
+                return;
+            }
+
+            for (int i = 0; i < games.size(); i++) {
+                System.out.println(games.get(i).toDisplayLine(i + 1));
+            }
+            System.out.println();
+            System.out.print("경기 번호 입력 (0: 이전): ");
+
+            Object input = parseInput(scanner.nextLine());
+            if (input instanceof Integer n) {
+                if (n == 0) return;
+                if (n >= 1 && n <= games.size()) {
+                    Long selectedGameId = games.get(n - 1).gameId();
+                    showBoxScore(selectedGameId);
+                } else {
+                    System.out.println("올바른 번호를 입력해주세요.");
+                }
+            } else {
+                System.out.println("숫자를 입력해주세요.");
+            }
+        }
+    }
+
+    private void showBoxScore(Long gameId) {
+        try {
+            BoxScoreDto bs = gameFacade.getBoxScore(gameId);
+            printBoxScore(bs);
+        } catch (Exception e) {
+            System.out.println("박스스코어를 불러오는 중 오류가 발생했습니다: " + e.getMessage());
+        }
+    }
+
+    private void printBoxScore(BoxScoreDto bs) {
+        int totalInnings = Math.max(bs.inningScoresA().size(), bs.inningScoresB().size());
+
+        // ── 헤더 ──────────────────────────────────────────────────────────────
         System.out.println();
-        System.out.println("=== 기록/일정 ===");
+        String divider = "═".repeat(62);
+        System.out.println(divider);
+        System.out.printf("  %s | %s vs %s%n", bs.gameDate(), bs.teamAName(), bs.teamBName());
+        System.out.println(divider);
 
-        List<GameScheduleItem> items = gameFacade.getRecentGames();
-        if (items.isEmpty()) {
-            System.out.println("등록된 경기가 없습니다.");
-            return;
+        // ── 전광판 스코어보드 ──────────────────────────────────────────────────
+        System.out.println();
+        System.out.println("[전광판]");
+
+        StringBuilder sbHeader = new StringBuilder(String.format("%-10s|", ""));
+        for (int i = 1; i <= totalInnings; i++) {
+            sbHeader.append(String.format(" %2d", i));
+        }
+        sbHeader.append("  |  R  H BB");
+        String headerLine = sbHeader.toString();
+        System.out.println(headerLine);
+        System.out.println("─".repeat(headerLine.length()));
+
+        System.out.print(buildScoreboardRow(bs.teamAName(), bs.inningScoresA(), totalInnings, false,
+                bs.totalRunsA(), bs.totalHitsA(), bs.totalWalksA()));
+        System.out.print(buildScoreboardRow(bs.teamBName(), bs.inningScoresB(), totalInnings, true,
+                bs.totalRunsB(), bs.totalHitsB(), bs.totalWalksB()));
+        System.out.println("─".repeat(headerLine.length()));
+
+        // ── 타자 박스스코어 ────────────────────────────────────────────────────
+        if (!bs.teamABatters().isEmpty()) {
+            printBatterSection(bs.teamAName(), bs.teamABatters(), totalInnings);
+        }
+        if (!bs.teamBBatters().isEmpty()) {
+            printBatterSection(bs.teamBName(), bs.teamBBatters(), totalInnings);
         }
 
-        for (GameScheduleItem item : items) {
-            System.out.printf("%s %d:%d %s (Game_%d 경기)%n",
-                    item.awayTeamName(), item.awayScore(),
-                    item.homeScore(), item.homeTeamName(),
-                    item.gameId());
+        // ── 투수 박스스코어 ────────────────────────────────────────────────────
+        System.out.println();
+        System.out.println("[투수 박스스코어]");
+        String pitcherHeader = String.format("%-4s %-18s | %-5s | %5s | %5s | %5s | %5s | %5s | %5s",
+                "", "선수명(팀)", "이닝", "투구수", "피안타", "피홈런", "탈삼진", "볼넷", "실점");
+        System.out.println("─".repeat(pitcherHeader.length()));
+        System.out.println(pitcherHeader);
+        System.out.println("─".repeat(pitcherHeader.length()));
+        printPitcherBoxLine("[A]", bs.teamAPitcher());
+        printPitcherBoxLine("[B]", bs.teamBPitcher());
+        System.out.println("─".repeat(pitcherHeader.length()));
+    }
+
+    private String buildScoreboardRow(
+            String teamName,
+            List<Integer> inningScores,
+            int totalInnings,
+            boolean isHomeTeam,
+            int totalRuns, int totalHits, int totalWalks
+    ) {
+        StringBuilder row = new StringBuilder(String.format("%-10s|", teamName));
+        for (int i = 0; i < totalInnings; i++) {
+            if (i < inningScores.size()) {
+                row.append(String.format(" %2d", inningScores.get(i)));
+            } else if (isHomeTeam) {
+                row.append("  X");   // 홈팀이 마지막 이닝 말을 치지 않음
+            } else {
+                row.append("  -");
+            }
         }
+        row.append(String.format("  | %2d %2d %2d%n", totalRuns, totalHits, totalWalks));
+        return row.toString();
+    }
+
+    /**
+     * 타자 박스스코어 출력 (이닝별 PA 결과만 표시, 안타/타점 없음)
+     * 결과 약자: SO=삼진  FO=범타  BB=볼넷  H=단타  2B=2루타  3B=3루타  HR=홈런
+     */
+    private void printBatterSection(
+            String teamName, List<BatterBoxLineDto> batters, int totalInnings
+    ) {
+        System.out.println();
+        System.out.printf("[타자 박스스코어 - %s]%n", teamName);
+
+        // 헤더
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("%2s %-16s|", "#", "선수명"));
+        for (int i = 1; i <= totalInnings; i++) {
+            sb.append(String.format(" %3d", i));
+        }
+        System.out.println(sb);
+        System.out.println("─".repeat(sb.length()));
+
+        for (BatterBoxLineDto batter : batters) {
+            StringBuilder row = new StringBuilder();
+            row.append(String.format("%2d %-16s|", batter.battingOrder(), batter.playerName()));
+            for (int i = 1; i <= totalInnings; i++) {
+                String result = batter.inningResults().getOrDefault(i, "-");
+                row.append(String.format(" %3s", result));
+            }
+            System.out.println(row);
+        }
+        System.out.println("─".repeat(sb.length()));
+    }
+
+    private void printPitcherBoxLine(String tag, PitcherBoxLineDto p) {
+        if (p == null) return;
+        System.out.printf("%-4s %-18s | %-5s | %5d | %5d | %5d | %5d | %5d | %5d%n",
+                tag,
+                p.playerName() + "(" + p.teamName() + ")",
+                p.inningsDisplay(),
+                p.pitchesThrown(),
+                p.hitsAllowed(),
+                p.homeRunsAllowed(),
+                p.strikeouts(),
+                p.walks(),
+                p.runsAllowed());
     }
 
     // -----------------------------------------------------------------------
@@ -147,7 +290,6 @@ public class ConsoleMenuController {
                 continue;
             }
 
-            // 정렬 방향 선택
             System.out.println();
             System.out.println("정렬 방향을 선택하세요:");
             System.out.println("1. 내림차순 (높은 값 우선)");
@@ -169,7 +311,8 @@ public class ConsoleMenuController {
         System.out.println(" 1. 타율    2. 안타    3. 볼넷");
         System.out.println(" 4. 2루타   5. 3루타   6. 홈런");
         System.out.println(" 7. 삼진    8. 출루율  9. 장타율");
-        System.out.println("10. OPS     0. 뒤로");
+        System.out.println("10. OPS    11. 득점   12. 타점");
+        System.out.println(" 0. 뒤로");
         System.out.print("선택: ");
     }
 
@@ -186,6 +329,8 @@ public class ConsoleMenuController {
             case  8 -> "출루율";
             case  9 -> "장타율";
             case 10 -> "OPS";
+            case 11 -> "득점";
+            case 12 -> "타점";
             default -> null;
         };
     }
@@ -202,15 +347,15 @@ public class ConsoleMenuController {
             case  8 -> Comparator.comparingDouble(BatterRankingDto::onBasePct);
             case  9 -> Comparator.comparingDouble(BatterRankingDto::sluggingPct);
             case 10 -> Comparator.comparingDouble(BatterRankingDto::ops);
+            case 11 -> Comparator.comparingInt(BatterRankingDto::runs);
+            case 12 -> Comparator.comparingInt(BatterRankingDto::rbi);
             default -> Comparator.comparingDouble(BatterRankingDto::battingAvg);
         };
         return descending ? base.reversed() : base;
     }
 
     private void printBatterRankings(
-            int seasonYear,
-            String statLabel,
-            boolean descending,
+            int seasonYear, String statLabel, boolean descending,
             List<BatterRankingDto> rankings
     ) {
         System.out.println();
@@ -253,7 +398,7 @@ public class ConsoleMenuController {
             System.out.println("1. 내림차순 (높은 값 우선)");
             System.out.println("2. 오름차순 (낮은 값 우선)");
             System.out.print("선택: ");
-            Object dirChoice  = parseInput(scanner.nextLine());
+            Object dirChoice   = parseInput(scanner.nextLine());
             boolean descending = !(dirChoice instanceof Integer d && d == 2);
 
             Comparator<PitcherRankingDto> comparator = buildPitcherComparator(statChoice, descending);
@@ -300,9 +445,7 @@ public class ConsoleMenuController {
     }
 
     private void printPitcherRankings(
-            int seasonYear,
-            String statLabel,
-            boolean descending,
+            int seasonYear, String statLabel, boolean descending,
             List<PitcherRankingDto> rankings
     ) {
         System.out.println();

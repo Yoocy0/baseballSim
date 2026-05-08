@@ -65,5 +65,17 @@ public class GameRecord {
      */
     @Column(name = "b_s_o_count")
     private String bsoCount;
+
+    /**
+     * 이 타석에서 발생한 득점 수.
+     * <p>
+     * - paEnd=true (타석 종료) 레코드: 0~4 실제 득점 값을 가집니다.
+     *   (무득점=0, 최대 만루홈런=4)
+     * - paEnd=false (중간 투구) 레코드: null (득점 발생 불가 시점)
+     * <p>
+     * 박스스코어 이닝별 득점 및 투수 실점 계산에 사용됩니다.
+     */
+    @Column(name = "runs_this_pa")
+    private Integer runsThisPA;
 }
 

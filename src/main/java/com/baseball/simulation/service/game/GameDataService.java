@@ -72,7 +72,10 @@ public class GameDataService {
     @Transactional
     public void saveSimulationResult(GameSimulationResultDto result) {
         simulationExecutor.saveGameRecordDtos(result.records());
-        simulationExecutor.finalizeGame(result.gameId(), result.finalScoreA(), result.finalScoreB());
+        simulationExecutor.finalizeGame(
+                result.gameId(), result.finalScoreA(), result.finalScoreB(),
+                result.inningScoresA(), result.inningScoresB()
+        );
     }
 
     /**

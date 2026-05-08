@@ -79,11 +79,18 @@ public class BatterStatSnapshot {
             case "TRIPLE"    -> { atBats++; hits++; triples++; }
             case "HOMERUN"   -> {
                 atBats++; hits++; homeRuns++;
-                runs++; // 홈런 타자는 본인이 직접 홈 터치
-                // TODO(part2): 루상 주자가 나중에 홈 인한 경우 runs 추가 반영
+                // 홈런 타자 본인의 득점은 InningProcessor에서 scorerIds를 통해 addRun()으로 처리
             }
             default -> { /* 미지원 결과: 통계 반영 없음 */ }
         }
+    }
+
+    /**
+     * 선수가 홈인(득점)했을 때 호출합니다.
+     * scorerIds를 통해 InningProcessor에서 명시적으로 호출됩니다.
+     */
+    public void addRun() {
+        runs++;
     }
 
     // -----------------------------------------------------------------------
