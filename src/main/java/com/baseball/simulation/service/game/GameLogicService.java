@@ -1,5 +1,7 @@
 package com.baseball.simulation.service.game;
 
+import com.baseball.simulation.domain.BatterStatSnapshot;
+import com.baseball.simulation.domain.PitcherStatSnapshot;
 import com.baseball.simulation.domain.dto.GameInitDto;
 import com.baseball.simulation.domain.dto.GameRecordDto;
 import com.baseball.simulation.domain.dto.GameSimulationResultDto;
@@ -8,6 +10,7 @@ import com.baseball.simulation.service.game.logic.InningProcessor;
 import com.baseball.simulation.service.game.logic.InningProcessor.InningSimResult;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -15,9 +18,9 @@ import org.springframework.stereotype.Service;
  * 순수 경기 시뮬레이션 오케스트레이터입니다.
  * <p>
  * Repository 또는 다른 서비스를 주입받지 않으며, DTO를 통해서만 입출력합니다.
- * GameDataService와 직접 의존 관계를 가지지 않습니다.
+ * GameDataService / BatterRecordService / PitcherRecordService와 직접 의존하지 않습니다.
  * <p>
- * 실제 시뮬레이션 계층 위임 구조:
+ * 시뮬레이션 계층:
  *   GameLogicService → InningProcessor → PlateAppearanceProcessor → PitchDecider
  */
 @Service
@@ -27,10 +30,18 @@ public class GameLogicService {
     private final InningProcessor inningProcessor;
 
     /**
-     * GameInitDto를 받아 9이닝(+연장) 경기를 메모리에서 시뮬레이션하고
-     * 결과(최종 점수 + 전체 투구 기록)를 GameSimulationResultDto로 반환합니다.
+     * 경기를 9이닝(+연장) 메모리에서 시뮬레이션합니다.
+     *
+     * @param initDto      팀·선수·경기 초기화 데이터
+     * @param batterStats  경기 시작 전 타자 성적 맵 (경기 중 인메모리 업데이트됨)
+     * @param pitcherStats 경기 시작 전 투수 성적 맵 (경기 중 인메모리 업데이트됨)
+     * @return 최종 스코어 + 전체 투구 기록 + 최종 타자/투수 성적 스냅샷 목록
      */
-    public GameSimulationResultDto simulate(GameInitDto initDto) {
+    public GameSimulationResultDto simulate(
+            GameInitDto initDto,
+            Map<Long, BatterStatSnapshot>  batterStats,
+            Map<Long, PitcherStatSnapshot> pitcherStats
+    ) {
         List<GameRecordDto> allRecords   = new ArrayList<>();
         List<PlayerDto>     teamAPlayers = initDto.teamAPlayers();
         List<PlayerDto>     teamBPlayers = initDto.teamBPlayers();
@@ -45,44 +56,35 @@ public class GameLogicService {
                 initDto.teamA().name(), initDto.teamB().name());
 
         while (true) {
-            // ── 초 공격: TeamA 공격, TeamB 수비 ──────────────────────────────
+            // ── 초 공격: TeamA 공격, TeamB 수비 (TeamB 선수[0]이 투수) ────────
             InningSimResult top = inningProcessor.process(
                     initDto.gameId(), inning, true,
                     teamAPlayers, teamBPlayers,
                     battingIndexA,
                     scoreA, scoreB,
                     false, 0, 0,
-                    allRecords
+                    allRecords, batterStats, pitcherStats
             );
             scoreA        += top.runs();
             battingIndexA  = top.nextBattingIndex();
 
-            // 9회 이후, 초 종료 시점에 홈팀(B)이 이미 리드하면 말 공격 불필요
-            if (inning >= 9 && scoreB > scoreA) {
-                break;
-            }
+            if (inning >= 9 && scoreB > scoreA) break;
 
-            // ── 말 공격: TeamB 공격, TeamA 수비 ──────────────────────────────
+            // ── 말 공격: TeamB 공격, TeamA 수비 (TeamA 선수[0]이 투수) ────────
             InningSimResult bottom = inningProcessor.process(
                     initDto.gameId(), inning, false,
                     teamBPlayers, teamAPlayers,
                     battingIndexB,
                     scoreA, scoreB,
                     inning >= 9, scoreA, scoreB,
-                    allRecords
+                    allRecords, batterStats, pitcherStats
             );
             scoreB        += bottom.runs();
             battingIndexB  = bottom.nextBattingIndex();
 
-            // 끝내기로 승부 결정
-            if (bottom.walkOff()) {
-                break;
-            }
+            if (bottom.walkOff()) break;
 
-            // 연장전: 말 공격 종료 후 점수가 같지 않으면 승부 결정
-            if (inning >= 9 && scoreA != scoreB) {
-                break;
-            }
+            if (inning >= 9 && scoreA != scoreB) break;
 
             inning++;
         }
@@ -91,6 +93,11 @@ public class GameLogicService {
                 initDto.teamA().name(), scoreA,
                 scoreB, initDto.teamB().name());
 
-        return new GameSimulationResultDto(initDto.gameId(), scoreA, scoreB, allRecords);
+        return new GameSimulationResultDto(
+                initDto.gameId(), scoreA, scoreB,
+                allRecords,
+                new ArrayList<>(batterStats.values()),
+                new ArrayList<>(pitcherStats.values())
+        );
     }
 }
